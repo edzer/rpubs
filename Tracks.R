@@ -1,5 +1,7 @@
 library(sp)
 library(spacetime)
+# Geolife trajectories,
+# data from http://research.microsoft.com/apps/pubs/?id=152176 :
 setwd("/home/edzer/Downloads/Geolife Trajectories 1.3/Data/")
 # TrackCollection:
 

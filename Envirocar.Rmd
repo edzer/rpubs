@@ -1,6 +1,6 @@
 Analyzing Envirocar trajectory data with R
 ========================================================
-##
+
 
 We can import the envirocar directly into spatial objects by exploiting the GeoJSON format which is supported by OGR, hence R function readOGR in package rgdal. To read from a https connection, we need RCurl.
 

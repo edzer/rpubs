@@ -1,4 +1,4 @@
 rpubs
 =====
 
-Rmd files uploaded to <http://rpubs.com/edzer/>
+Rmd files published at <http://rpubs.com/edzer/>

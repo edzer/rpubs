@@ -1,8 +1,7 @@
 Analyzing Envirocar trajectory data with R
 ========================================================
 
-
-We can import the envirocar directly into spatial objects by exploiting the GeoJSON format which is supported by OGR, hence R function readOGR in package rgdal. To read from a https connection, we need RCurl.
+We can import the envirocar directly into spatial objects by exploiting the GeoJSON format which is supported by OGR, hence R function readOGR in package rgdal. To read from a https connection, one needs RCurl when on windows.
 
 ```{r}
 url = "https://giv-car.uni-muenster.de/stable/rest/tracks/5207d871e4b058cd3d669afe"
@@ -113,8 +112,7 @@ points(xx)
 title("10-minute mean Consumption (l/h)")
 ```
 
-After having played with spatial objects (package sp) and temporal objects (package zoo), 
-we can convert these data into spatio-temporal objects (package spacetime):
+After having played with spatial objects (package sp) and temporal objects (package zoo),  we can convert these data into spatio-temporal objects (package spacetime):
 ```{r}
 library(spacetime)
 stidf = STIDF(geometry(sp), sp$time, sp@data)
@@ -123,43 +121,26 @@ stplot(geometry(stidf), main = "trajectory points, cut in 6 time slices with equ
 plots the geometry of the spatial points, over time, cutting time in six parts with an equal number of
 observations. 
 
-The next plot adds attribute values as colour, but cuts time in four parts of equal duration:
-```{r fig.width=10, fig.height=5}
-#stplot(stidf) # breaks because of id and time are invalid type
-stplot(stidf[,,"Consumption"],col.regions=bpy.colors(),
-	number=4,colorkey=T, main = "Consumption, cut into 4 time slices of equal duration")
-```
-Package spacetime also contains a class for trajectories. Direct conversion assumes that all points 
-form one consecutive trajectory (note that this requires spacetime >= 1.0-10 to work):
+Trajectory data can be represented as `Track` object,
 ```{r}
-sttdf = as(stidf, "STTDF") # convert to trajectory
-```
-If this gives an error, first define the conversion function correctly:
-```{r}
-setAs("STIDF", "STTDF",
-    function(from) {
-        if (is.null(from$burst))
-            traj = list(as(from, "STI"))
-        else
-            traj = lapply(split(from, from$burst), function(x) as(x, "STI"))
-        STIbox = STI(SpatialPoints(t(bbox(from@sp)), from@sp@proj4string),
-                range(index(from)))
-        new("STTDF", new("STT", STIbox, traj = traj), data = from@data)
-    }
-)
-```
-The object can be plotted:
-```{r fig.width=10, fig.height=5}
-stplot(sttdf, scales = list(draw=TRUE))
+track = Track(stidf)
+tracks = Tracks(list(tr1 = track))
+tracksCollection = TracksCollection(list(tr = tracks))
+stplot(tracksCollection)
 ```
 
+The next plot adds attribute values as colour:
+```{r fig.width=10, fig.height=5}
+stplot(tracksCollection, attr = "speed", lwd=3, scales=list(draw=T))
+```
 
 Adding a background map
 -----------------------
 Using package ggmap, we can add a google map background (or other background):
 ```{r fig.width=10, fig.height=5}
-bb <- bbox(sttdf@sp)
+#bb <- bbox(sttdf@sp)
 # expand bb (here, manually):
+bb = matrix(NA, 2,2)
 bb[2,] = c(51.94,51.985)
 bb[1,] = c(7.58,7.67)
 library(ggmap)
@@ -176,7 +157,8 @@ sp.raster <- list('grid.raster', map4ao,
                   x=lonCenter, y=latCenter,
                   width=width, height=height,
                   default.units='native')
-stplot(sttdf, scales = list(draw=TRUE), sp.layout = sp.raster, 
+stplot(tracksCollection, scales = list(draw=TRUE), 
+  sp.layout = sp.raster, 
 	col='red', lwd = 2, main = "google map background")
 ```
 

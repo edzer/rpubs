@@ -11,35 +11,10 @@ library(spacetime)
 ```
 
 The next class, `Tracks`, takes a collection (list) of `Track` objects, along with a metadata data.frame `tracksData` containing (summary) information, one record per `Track` (e.g. total length, duration, average speed). It is assumed that each `Tracks` object refers to a single person, animal or object.
-```{r}
-Tracks = setClass("Tracks", # a collection of Track objects for single ID (car, person etc)
-	representation(tracks = "list", tracksData = "data.frame"),
-	validity = function(object) {
-		stopifnot(all(sapply(object@tracks, function(x) is(x, "Track"))))
-		stopifnot(nrow(object@tracksData) == length(object@tracks))
-		stopifnot(length(object@tracks) > 0)
-		return(TRUE)
-	}
-)
-```
 
-`TracksCollection` finally collects `Tracks` collections for several persons, animals or objects, and has a slot `tracksCollectionData` with a summary record for each person/animal/object:
-```{r}
-TracksCollection = setClass("TracksCollection", # collection of Tracks for several IDs 
-	representation(tracksCollection = "list", tracksCollectionData = "data.frame"),
-	validity = function(object) {
-		stopifnot(all(sapply(object@tracksCollection, class) == "Tracks"))
-		stopifnot(length(object@tracksCollection) == 
-			nrow(object@tracksCollectionData))
-		stopifnot(length(object@tracksCollection) > 0)
-		names = names(object@tracksCollection)
-		stopifnot(!(is.null(names) || any(is.na(names))))
-		return(TRUE)
-	}
-)
-```
+`TracksCollection` finally collects `Tracks` collections for several persons, animals or objects, and has a slot `tracksCollectionData` with a summary record for each person/animal/object.
 
-Next, we will read a number of geolife trajectories, for the following persons:
+We will demonsrate useage by reading a number of geolife trajectories, for the following persons:
 ```{r}
 IDS = c("079", "095", "111", "127", "143", "159", "175")
 ```
@@ -75,7 +50,7 @@ for (d in IDS) {
 				& tab$long > -180)) {
 			stidf = STIDF(SpatialPoints(tab[,2:1], crs), tab$time, tab)
 			conn = tab[-1,"elev",drop=FALSE]
-			lst[[i]] = CreateTrack(stidf, conn)
+			lst[[i]] = Track(stidf, conn)
 			i = i+1
 		}
 	}
@@ -91,24 +66,7 @@ TR = TracksCollection(tracksCollection = lst0, tracksCollectionData = df)
 object.size(TR)
 ```
 
-Next, we define a few utility functions to convert the track data into `data.frame` objects, with `NA` separated trips:
-```{r}
-setAs("Track", "data.frame", function(from)
-	as(as(from, "STIDF"), "data.frame")
-)
-setAs("Tracks", "data.frame", function(from)
-	do.call(rbind, lapply(from@tracks, function(x) rbind(as(x, "data.frame"), NA)))
-)
-setAs("TracksCollection", "data.frame", function(from) {
-		l = lapply(from@tracksCollection, function(x) rbind(as(x, "data.frame"), NA))
-		n = sapply(l, nrow)
-		ret = do.call(rbind, l)
-		data.frame(ret, IDs = rep(names(from@tracksCollection), times = n))
-	}
-)
-#as(TR@tracksCollection[[1]]@tracks[[1]], "data.frame")
-#as(TR@tracksCollection[[1]], "data.frame")
-```
+We defined a few utility functions to convert the track data into `data.frame` objects, with `NA` separated trips:
 and we use this:
 ```{r}
 df = as(TR, "data.frame")
@@ -116,36 +74,30 @@ df = as(TR, "data.frame")
 ```
 then, we can plot the trajectories read:
 ```{r}
-setMethod("plot", "TracksCollection", function(x, ..., type = 'l', colorBy = "IDs") {
-		df = as(x, "data.frame")
-		if (colorBy == "IDs")
-			col = as.numeric(as.factor(df$IDs))
-		# print(col)
-		plot(lat ~ long, df, asp = 1, type = type, col = col, ...)
-	}
-)
-#plot(TR, xlim=c(116.3,116.5),ylim=c(39.8,40))
 plot(TR)
 ```
 
 ```{r}
-library(lattice)
-xyplot(lat~long, df, type='l',
-       xlim=c(116,116.5),
-       ylim=c(39.5,40.5),
-       groups=IDs,
-       col=1:20)
+stplot(TR, xlim=c(116.3,116.5),ylim=c(39.8,40), col = 1:20)
 ```
 
 ```{r}
-setMethod("stplot", "TracksCollection", function(obj, ..., mode = "byID") {
-    sp = obj@tracksCollection[[1]]@tracks[[1]]@sp
-    if (mode == "byID")
-		  xyplot(lat~long, as(obj, "data.frame"), type='l', 
-		  	groups = IDs, asp = mapasp(sp), ...)
-    else
-        stop("no other modes implemented")
-	}
-)
-stplot(TR, xlim=c(116.3,116.5),ylim=c(39.8,40), col = 1:20)
+ggm = function(obj) {
+  bb <- bbox(obj)
+  location = c(bb[1,1], bb[1,2], bb[2,1], bb[2,2])
+  require(ggmap)
+  map4ao <- get_map(location = location)
+  bbMap <- attr(map4ao, "bb")
+  latCenter <- with(bbMap, ll.lat + ur.lat)/2
+  lonCenter <- with(bbMap, ll.lon + ur.lon)/2
+  height <- with(bbMap, ur.lat - ll.lat)
+  width <- with(bbMap, ur.lon - ll.lon)
+  list("grid.raster", map4ao, x = lonCenter, 
+    y = latCenter, width = width,  height = height, 
+    default.units = "native")
+}
+## Another component of the sp.layout in spplot
+stplot(TR, scales = list(draw = TRUE), sp.layout = ggm(TR), 
+  col = "red",  lwd = 2, 
+  xlim=c(116.3,116.5),ylim=c(39.8,40))
 ```

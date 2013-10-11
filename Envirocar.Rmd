@@ -17,8 +17,12 @@ As we can see, the attribute contains id (point nr) and time (still as factor, n
 importEnviroCar = function(file) {
   require(rjson) # fromJSON
   require(maptools) # spCbind
+  require(rgdal) #readOGR
+  require(RCurl) #getURL
+  
   # read data as spatial object:
-	layer = readOGR(file, layer = "OGRGeoJSON")
+	layer = readOGR(getURL(file,ssl.verifypeer = FALSE), layer = "OGRGeoJSON")
+  
 	# convert time from text to POSIXct:
 	layer$time = as.POSIXct(layer$time, format="%Y-%m-%dT%H:%M:%SZ")
 	# the third column is JSON, we want it in a table (data.frame) form:
@@ -27,17 +31,30 @@ importEnviroCar = function(file) {
 	# 2. parse the $value elements in the sublist:
 	l2 = lapply(l1,
 		function(x) as.data.frame(lapply(x, function(X) X$value)))
-	# bind these value elements, row by row, together
-	ret = do.call(rbind, l2)
-	# read the units:
-	units = lapply(l1[1],
-		function(x) as.data.frame(lapply(x, function(X) X$unit)))
+	# create a matrix with all columns and then convert it to a data frame
+  # thanks to Kristina Helle!
+  # TODO hard coded; needs to be read from server in future
+  colNames = c("Speed","Consumption","Calculated.MAF", "Intake.Pressure", "CO2", "Intake.Temperature","MAF","Rpm","Throttle.Position","Engine.Load")
+  
+  resultMatrix = matrix(nrow=length(l2),ncol=length(colNames))
+  dimnames(resultMatrix)[[2]]=colNames
+  resultMatrix
+  for (i in seq(along = l2)){
+    resultMatrix[i,names(l2[[i]])]=as.numeric(l2[[i]])
+  }
+  result = as.data.frame(resultMatrix)
+  
+  # set the units:
+  # TODO hard coded; needs to be read from server in future 
+  units = c("km/h","l/h","g/s","kPa","kg/h","C","l/s","u/min","%","%")
+  names(units)=colNames
+  
 	# add a units attribute to layer
 	layer[[3]] = NULL
 	# add the table as attributes to the spatial object 
   if (length(layer) == nrow(ret)) {
 	  layer = spCbind(layer, ret)
-	  attr(layer, "units") = units[[1]]
+	  attr(layer, "units") = units
   	layer
   } else
     NULL

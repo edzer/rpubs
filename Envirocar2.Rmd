@@ -17,12 +17,8 @@ As we can see, the attribute contains id (point nr) and time (still as factor, n
 importEnviroCar = function(file) {
   require(rjson) # fromJSON
   require(maptools) # spCbind
-  require(rgdal) #readOGR
-  require(RCurl) #getURL
-  
   # read data as spatial object:
-	layer = readOGR(getURL(file,ssl.verifypeer = FALSE), layer = "OGRGeoJSON")
-  
+	layer = readOGR(file, layer = "OGRGeoJSON")
 	# convert time from text to POSIXct:
 	layer$time = as.POSIXct(layer$time, format="%Y-%m-%dT%H:%M:%SZ")
 	# the third column is JSON, we want it in a table (data.frame) form:
@@ -31,28 +27,17 @@ importEnviroCar = function(file) {
 	# 2. parse the $value elements in the sublist:
 	l2 = lapply(l1,
 		function(x) as.data.frame(lapply(x, function(X) X$value)))
-	# create a matrix with all columns and then convert it to a data frame
-  # thanks to Kristina Helle!
-  # TODO hard coded; needs to be read from server in future
-  colNames = c("Speed","Consumption","Calculated.MAF", "Intake.Pressure", "CO2", "Intake.Temperature","MAF","Rpm","Throttle.Position","Engine.Load")
-  
-  resultMatrix = matrix(nrow=length(l2),ncol=length(colNames))
-  dimnames(resultMatrix)[[2]]=colNames
-  for (i in seq(along = l2))
-    resultMatrix[i,names(l2[[i]])]=as.numeric(l2[[i]])
-  result = as.data.frame(resultMatrix)
-  
-  # set the units:
-  # TODO hard coded; needs to be read from server in future 
-  units = c("km/h","l/h","g/s","kPa","kg/h","C","l/s","u/min","%","%")
-  names(units)=colNames
-  
+	# bind these value elements, row by row, together
+	ret = do.call(rbind, l2)
+	# read the units:
+	units = lapply(l1[1],
+		function(x) as.data.frame(lapply(x, function(X) X$unit)))
 	# add a units attribute to layer
 	layer[[3]] = NULL
 	# add the table as attributes to the spatial object 
-  if (length(layer) == nrow(result)) {
-	  layer = spCbind(layer, result)
-	  attr(layer, "units") = units
+  if (length(layer) == nrow(ret)) {
+	  layer = spCbind(layer, ret)
+	  attr(layer, "units") = units[[1]]
   	layer
   } else
     NULL
@@ -153,8 +138,6 @@ Adding a background map
 -----------------------
 Using package ggmap, we can add a google map background (or other background):
 ```{r fig.width=10, fig.height=5}
-#bb <- bbox(sttdf@sp)
-# expand bb (here, manually):
 bb = matrix(NA, 2,2)
 bb[2,] = c(51.94,51.985)
 bb[1,] = c(7.58,7.67)
@@ -237,44 +220,6 @@ spplot(sp.selected, "Consumption", colorkey=TRUE, main = "selected points accord
 Further problems regarding generalization
 ------------------------
 Generalization as done above only retains the spatial path, but ignores time and attributes. One could rather easily implement Douglas-Peuker on higher-dimensional curves e.g. $(x,y,t)$ or $(x,y,t,Attr_1,Attr_2,...,Attr_n)$ but then one needs a distance metric that combines space, time and attributes -- which one would be good?
-
-Multiple tracks
--------------
-```{r}
-library(RCurl)
-url = "https://giv-car.uni-muenster.de/stable/rest/tracks/"
-allIDs = fromJSON(getURL(url))
-ids = sapply(allIDs[[1]], function(x) x$id)
-ids = ids[3:120]
-ids = ids[!ids %in% c("522d9877e4b00a043c46b236", 
-                      "522d9855e4b00a043c46a8b3",
-                      "52264446e4b00a043c4376f8",
-                      "52274261e4b00a043c44b9b0"
-                      )]
-ids[1:10]
-```
-Read the first 10 tracks, and check which of them are valid (meaning: all attributes are present for all points):
-```{r}
-from = 1
-to= 10
-ids = ids[from:to]
-lst = lapply(paste(url, ids, sep=""), importEnviroCar)
-names(lst) = ids
-sel = !sapply(lst, is.null)
-sel
-```
-Next, we'll throw out the invalid ones (a better procedure would only throw out points, not full trajectories)
-```{r}
-lst = lst[sel]
-length(lst)
-```
-Then, we'll create a STTDF from this, by
-```{r}
-lst2 = lapply(lst, function(x) STI(geometry(x), x$time))
-attributes = do.call(rbind, lapply(lst, function(x) x@data))
-sttdf = STTDF(STT(lst2), attributes)
-stplot(sttdf, col = 1:length(lst), scales = list(draw=TRUE), main = "five trajectories")
-```
 
 What have we learned?
 ---------------

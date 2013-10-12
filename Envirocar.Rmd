@@ -19,22 +19,25 @@ importEnviroCar = function(file) {
   require(maptools) # spCbind
   require(rgdal) #readOGR
   require(RCurl) #getURL
+  require(stringr) #str_replace_all
   
   # read data as spatial object:
-	layer = readOGR(getURL(file,ssl.verifypeer = FALSE), layer = "OGRGeoJSON")
+  layer = readOGR(getURL(file,ssl.verifypeer = FALSE), layer = "OGRGeoJSON")
   
-	# convert time from text to POSIXct:
-	layer$time = as.POSIXct(layer$time, format="%Y-%m-%dT%H:%M:%SZ")
-	# the third column is JSON, we want it in a table (data.frame) form:
-	# 1. form a list of lists
-	l1 = lapply(as.character(layer[[3]]), fromJSON)
-	# 2. parse the $value elements in the sublist:
-	l2 = lapply(l1,
-		function(x) as.data.frame(lapply(x, function(X) X$value)))
-	# create a matrix with all columns and then convert it to a data frame
+  # convert time from text to POSIXct:
+  layer$time = as.POSIXct(layer$time, format="%Y-%m-%dT%H:%M:%SZ")
+  # the third column is JSON, we want it in a table (data.frame) form:
+  # 1. form a list of lists
+  l1 = lapply(as.character(layer[[3]]), fromJSON)
+  # 2. parse the $value elements in the sublist:
+  l2 = lapply(l1,
+              function(x) as.data.frame(lapply(x, function(X) X$value)))
+  # create a matrix with all columns and then convert it to a data frame
   # thanks to Kristina Helle!
-  # TODO hard coded; needs to be read from server in future
-  colNames = c("Speed","Consumption","Calculated.MAF", "Intake.Pressure", "CO2", "Intake.Temperature","MAF","Rpm","Throttle.Position","Engine.Load")
+  # dynamic parsing of phenomenon names and units
+  phenomenonsUrl = "https://giv-car.uni-muenster.de/stable/rest/phenomenons"
+  phenomenons = fromJSON(getURL(phenomenonsUrl))
+  colNames <- str_replace_all(sapply(phenomenons[[1]], "[[", "name"), pattern=" ", repl=".")
   
   resultMatrix = matrix(nrow=length(l2),ncol=length(colNames))
   dimnames(resultMatrix)[[2]]=colNames
@@ -43,17 +46,16 @@ importEnviroCar = function(file) {
   result = as.data.frame(resultMatrix)
   
   # set the units:
-  # TODO hard coded; needs to be read from server in future 
-  units = c("km/h","l/h","g/s","kPa","kg/h","C","l/s","u/min","%","%")
+  units <- sapply(phenomenons[[1]], "[[", "unit")
   names(units)=colNames
   
-	# add a units attribute to layer
-	layer[[3]] = NULL
-	# add the table as attributes to the spatial object 
+  # add a units attribute to layer
+  layer[[3]] = NULL
+  # add the table as attributes to the spatial object 
   if (length(layer) == nrow(result)) {
-	  layer = spCbind(layer, result)
-	  attr(layer, "units") = units
-  	layer
+    layer = spCbind(layer, result)
+    attr(layer, "units") = units
+    layer
   } else
     NULL
 }

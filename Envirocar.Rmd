@@ -4,7 +4,7 @@ Analyzing Envirocar trajectory data with R
 We can import the envirocar directly into spatial objects by exploiting the GeoJSON format which is supported by OGR, hence R function readOGR in package rgdal. To read from a https connection, one needs RCurl when on windows.
 
 ```{r}
-url = "https://giv-car.uni-muenster.de/stable/rest/tracks/5207d871e4b058cd3d669afe"
+url = "https://www.envirocar.org/api/stable/tracks/5207d871e4b058cd3d669afe"
 require(rgdal) # readOGR
 layer <- readOGR(url, layer = "OGRGeoJSON")
 class(layer)
@@ -35,7 +35,7 @@ importEnviroCar = function(file) {
   # create a matrix with all columns and then convert it to a data frame
   # thanks to Kristina Helle!
   # dynamic parsing of phenomenon names and units
-  phenomenonsUrl = "https://giv-car.uni-muenster.de/stable/rest/phenomenons"
+  phenomenonsUrl = "https://www.envirocar.org/api/stable/phenomenons"
   phenomenons = fromJSON(getURL(phenomenonsUrl))
   colNames <- str_replace_all(sapply(phenomenons[[1]], "[[", "name"), pattern=" ", repl=".")
   
@@ -60,7 +60,7 @@ importEnviroCar = function(file) {
     NULL
 }
 
-url = "https://giv-car.uni-muenster.de/stable/rest/tracks/5207d871e4b058cd3d669afe"
+url = "https://www.envirocar.org/api/stable/tracks/5207d871e4b058cd3d669afe"
 sp = importEnviroCar(url)
 sp[1,]
 attr(sp, "units")
@@ -244,7 +244,7 @@ Multiple tracks
 -------------
 ```{r}
 library(RCurl)
-url = "https://giv-car.uni-muenster.de/stable/rest/tracks/"
+url = "https://www.envirocar.org/api/stable/tracks/"
 allIDs = fromJSON(getURL(url))
 ids = sapply(allIDs[[1]], function(x) x$id)
 ids = ids[3:120]
